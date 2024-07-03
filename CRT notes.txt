@@ -40,7 +40,6 @@ Ports to watch out for:
 - 123 - NTP
 - 161 - SNMP
 
-
 ##### Service Identification #####
 telnet IP Port - grabs banner
 wget IP -q -S - works for web servers, displays server header if present.
@@ -50,7 +49,6 @@ nmap -sV --script=banner IP - another way to get banner
 nc -v  IP PORT - banner grabs with Netcat
 dmitry -bp IP - goes through all open services and identifies software names and versions
 
-
 ### Appendix D ###
 
 ##### unencrypted services #####
@@ -59,7 +57,6 @@ nmap -sU -p 69 --script=tftp-enum IP - enumerates tftp
 tftp IP - this is not interactive, you sort of have to guess files exist.
 When connected with tftp:
 get /filename
-
 
 ##### Desktop Access #####
 hydra -L users.txt -P pass.txt IP rdp - brute forces RDP
@@ -75,7 +72,7 @@ If ftp doesn't work, try it in the network 'Browse Network' dialogue in kali and
 ##### SNMP #####
 nmap -sU -p 161 IP
 onesixtyone IP - discovers community strings
-snmapwalk -c public -v1 IP 
+snmpwalk -c public -v1 IP 
 snmp-check -c public -v1 IP - these commands can return huge amounts of information, so maybe output to a file and grep through.
 
 ##### SSH #####
@@ -134,6 +131,7 @@ john --format=krb5tgs --wordlist=wordlist.txt kerberos.txt
 ##### Desktop Breakout #####
 https://www.pentestpartners.com/security-blog/breaking-out-of-citrix-and-other-restricted-desktop-environments/ - read and memorise as best you can. Look at ways you can share files, using complete paths to files, various executables like ftp.exe, cmd.exe, powershell.exe etc. Use dialogue boxes and work with as many as you can. Check run, task manager to see if you can run tasks and start processes etc. 
 
+Make file with notepad and enter cmd.exe on the first line, change the extension to .bat. Open the bat file. try again with powershell.exe and ftp.exe.
 
 ### Other Simple Exploitation ###
 
@@ -146,7 +144,7 @@ john passwords --wordlist=list.txt - cracks it
 nmap -v -p 445 --script=smb-vuln* IP - vuln scans against smb
 msfconsole - search for the identified vulns
 
-If it's an AD box, load kiwi opens mimikatz in metasploit. 
+If it's an AD box and a foothold is required, load kiwi opens mimikatz in metasploit. 
 
 ##### Databases #####
 # MSSQL #
@@ -172,6 +170,6 @@ psql -h IP -U postgres - connects to postgres
 
 
 ##### Web Stuff #####
-really simple basic payloads, use active scanner on Burp
-Run Nikto or nmap --script=http-methods to identify dodgy methods.
+really simple basic payloads, use active scanner on Burp.
+Run Nikto or nmap --script=http-methods to identify dodgy methods. use both to be sure.
 
