@@ -7,12 +7,12 @@ ping -c 4 IP
 TTL 128 is Microsoft Windows
 TTL 64 is Linux but these values depend on hops.
 
-telnet IP PORT
+telnet $IP $PORT
 
 ### Appendix B ###
 ##### DNS #####
-host -l domain.TLD subdomain.domain.TLD - zone transfer
-dnsrecon -d domain.TLD - looks at SRV as well.
+host -l $domain.TLD $subdomain.domain.TLD - zone transfer
+dnsrecon -d $domain.TLD - looks at SRV records as well.
 dnsenum domain.TLD - zonetransfers, reads each record etc.
 host -v -t A domain.TLD - queries A records on the domain
 dig @subdomain.domain.TLD chaos version.bind txt # reveals DNS version
@@ -29,8 +29,8 @@ fping -a -g IPRange 2> /dev/null
 nmap -n -sn -PS IPRange - TCP sweep
 
 ##### IP Routing ##### 
-ip route add subnet(that the target is on) via gateway(the box you can access that can access the subnet)
-ping IP - can confirm connectivity.
+ip route add $subnet(that the target is on) via $gateway(the box you can access that can access the subnet)
+ping IP - can confirm connectivity if ping is open.
 
 ##### UDP #####
 nmap -sU IP
